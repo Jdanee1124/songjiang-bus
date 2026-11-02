@@ -1,0 +1,14 @@
+{
+  "name": "songjiang-bus-dashboard",
+  "version": "1.0.0",
+  "description": "松江通勤实时决策看板 (松莘B线 / 松江40路)",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "keywords": ["transit", "shanghai", "bus", "songjiang"],
+  "author": "",
+  "license": "MIT"
+}

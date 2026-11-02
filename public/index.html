@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="松江通勤">
+  <meta name="theme-color" content="#0f172a">
+  <title>松江通勤实时决策看板</title>
+  
+  <!-- Apple Touch Icon for Home Screen -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%232563eb'/><path d='M28 25 C28 20, 72 20, 72 25 L72 65 C72 70, 28 70, 28 65 Z' fill='%23ffffff'/><rect x='33' y='28' width='34' height='18' rx='4' fill='%232563eb'/><circle cx='38' cy='58' r='4' fill='%232563eb'/><circle cx='62' cy='58' r='4' fill='%232563eb'/><rect x='34' y='69' width='7' height='7' rx='2' fill='%23ffffff'/><rect x='59' y='69' width='7' height='7' rx='2' fill='%23ffffff'/></svg>">
+
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 46, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f3f4f6;
+      --text-sub: #9ca3af;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      padding: env(safe-area-inset-top, 20px) 16px env(safe-area-inset-bottom, 24px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Top Nav Segmented Control */
+    .header {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-top: 10px;
+    }
+
+    .app-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .app-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .refresh-badge {
+      font-size: 12px;
+      color: var(--text-sub);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .refresh-icon {
+      display: inline-block;
+      transition: transform 0.5s ease;
+    }
+    .rotating {
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    .mode-switch {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 4px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      position: relative;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      font-size: 15px;
+      font-weight: 600;
+      padding: 10px 0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mode-btn.active {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+    }
+
+    /* AI Recommendation Banner */
+    .ai-banner {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 16px;
+      padding: 14px 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .ai-banner-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .ai-banner-text {
+      flex: 1;
+    }
+
+    .ai-banner-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #93c5fd;
+      margin-bottom: 2px;
+    }
+
+    .ai-banner-desc {
+      font-size: 13px;
+      color: #e5e7eb;
+      line-height: 1.4;
+    }
+
+    /* Route Cards */
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .route-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 18px 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .route-card.highlight {
+      border-color: rgba(16, 185, 129, 0.5);
+      box-shadow: 0 8px 30px rgba(16, 185, 129, 0.15);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .route-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .line-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .route-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-sub);
+    }
+
+    .decision-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ETA Display Area */
+    .eta-box {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin: 10px 0 6px;
+    }
+
+    .eta-number {
+      font-size: 46px;
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eta-unit {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    .eta-detail {
+      font-size: 14px;
+      color: var(--text-sub);
+      margin-left: 6px;
+    }
+
+    .eta-waiting {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--warning);
+      padding: 10px 0;
+    }
+
+    /* Smart Tip */
+    .decision-tip {
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      margin: 10px 0 14px;
+      color: #d1d5db;
+    }
+
+    /* Sub Details */
+    .route-meta {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .meta-label {
+      color: #6b7280;
+    }
+
+    .meta-value {
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    /* Bottom Tip */
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: #4b5563;
+      padding: 16px 0 8px;
+      line-height: 1.6;
+    }
+
+    /* Loading overlay */
+    .loading-shimmer {
+      opacity: 0.6;
+      filter: blur(1px);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="app-title-row">
+        <div class="app-title">
+          <span>🚌</span> 松江通勤对比
+        </div>
+        <div class="refresh-badge" id="refreshBtn" onclick="manualRefresh()">
+          <span class="refresh-icon" id="refreshIcon">↻</span>
+          <span id="updateTimer">实时</span>
+        </div>
+      </div>
+
+      <!-- Segmented Switch: Evening vs Morning -->
+      <div class="mode-switch">
+        <button class="mode-btn active" id="btnEvening" onclick="switchMode('evening')">
+          🏢 下班回家
+        </button>
+        <button class="mode-btn" id="btnMorning" onclick="switchMode('morning')">
+          ☀️ 早晨上班
+        </button>
+      </div>
+    </div>
+
+    <!-- AI Recommendation -->
+    <div class="ai-banner" id="aiBanner">
+      <div class="ai-banner-icon">⚡</div>
+      <div class="ai-banner-text">
+        <div class="ai-banner-title" id="aiTitle">实时测算中...</div>
+        <div class="ai-banner-desc" id="aiDesc">正在拉取松莘B线与松江40路卫星定位...</div>
+      </div>
+    </div>
+
+    <!-- Cards Container -->
+    <div class="card-list" id="cardList">
+      <!-- Skeleton Cards -->
+      <div class="route-card">
+        <div class="card-top">
+          <div class="line-title">加载中...</div>
+        </div>
+        <div class="eta-box">
+          <div class="eta-number" style="color:#6b7280">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>💡 提示：在 Safari 点击下方「分享」➜「添加到主屏幕」即可秒开</div>
+      <div>松江区实时公交专线 · 无广告 · 20秒自动同步</div>
+    </div>
+  </div>
+
+  <script>
+    let currentMode = 'evening';
+    let autoRefreshTimer = null;
+    let countdownSec = 20;
+
+    // Detect time on load: before 12:00 -> morning, after 12:00 -> evening
+    const hour = new Date().getHours();
+    if (hour < 12) {
+      currentMode = 'morning';
+      document.getElementById('btnMorning').classList.add('active');
+      document.getElementById('btnEvening').classList.remove('active');
+    }
+
+    function switchMode(mode) {
+      if (currentMode === mode) return;
+      currentMode = mode;
+      document.getElementById('btnEvening').classList.toggle('active', mode === 'evening');
+      document.getElementById('btnMorning').classList.toggle('active', mode === 'morning');
+      fetchData();
+    }
+
+    async function fetchData() {
+      const cardList = document.getElementById('cardList');
+      const refreshIcon = document.getElementById('refreshIcon');
+      refreshIcon.classList.add('rotating');
+
+      try {
+        const res = await fetch(`/api/transit?mode=${currentMode}&t=${Date.now()}`);
+        const data = await res.json();
+        renderData(data);
+      } catch (e) {
+        document.getElementById('aiTitle').innerText = '网络连接提示';
+        document.getElementById('aiDesc').innerText = '获取实时位置超时，请检查网络或点击右上角刷新。';
+      } finally {
+        refreshIcon.classList.remove('rotating');
+        countdownSec = 20;
+      }
+    }
+
+    function renderData(data) {
+      const { title, options } = data;
+      const cardList = document.getElementById('cardList');
+      cardList.innerHTML = '';
+
+      let bestOption = null;
+
+      options.forEach((opt, idx) => {
+        const card = document.createElement('div');
+        card.className = 'route-card';
+
+        const dec = opt.decision || {};
+        const next = opt.nextBus;
+
+        // Check if this option is recommended
+        if (dec.level === 'perfect' && !bestOption) {
+          bestOption = opt;
+          card.classList.add('highlight');
+        }
+
+        let etaHtml = '';
+        if (next) {
+          etaHtml = `
+            <div class="eta-box">
+              <span class="eta-number" style="color: ${dec.color}">${next.etaMinutes}</span>
+              <span class="eta-unit">分钟</span>
+              <span class="eta-detail">还有 ${next.stopsAway} 站 ${next.distanceMeters ? `· ${(next.distanceMeters / 1000).toFixed(1)}km` : ''}</span>
+            </div>
+          `;
+        } else {
+          etaHtml = `
+            <div class="eta-waiting">
+              ${opt.depDesc || '暂无运行车辆'}
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="route-header">
+              <span class="line-title">${opt.lineName}</span>
+              <span class="route-tag">${opt.badge}</span>
+            </div>
+            <div class="decision-badge" style="background: ${dec.color || '#3b82f6'}">
+              ${dec.tag || '运行中'}
+            </div>
+          </div>
+
+          ${etaHtml}
+
+          <div class="decision-tip">
+            ${dec.tip || '暂无提醒'}
+          </div>
+
+          <div class="route-meta">
+            <div class="meta-row">
+              <span class="meta-label">上车站</span>
+              <span class="meta-value">${opt.stopName}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">目的地</span>
+              <span class="meta-value">${opt.destStopName}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">出行耗时</span>
+              <span class="meta-value">${opt.totalTripTime}</span>
+            </div>
+            ${opt.secondBus ? `
+              <div class="meta-row" style="color: #9ca3af; margin-top:2px;">
+                <span class="meta-label">再下一班</span>
+                <span class="meta-value">约 ${opt.secondBus.etaMinutes} 分钟后（还有 ${opt.secondBus.stopsAway} 站）</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        cardList.appendChild(card);
+      });
+
+      // Update AI Banner
+      const aiTitle = document.getElementById('aiTitle');
+      const aiDesc = document.getElementById('aiDesc');
+
+      if (options.length >= 2) {
+        const o1 = options[0];
+        const o2 = options[1];
+
+        if (currentMode === 'morning') {
+          if (o1.decision.level === 'perfect') {
+            aiTitle.innerText = `💡 早晨推荐：优先走【${o1.lineName}】`;
+            aiDesc.innerText = `${o1.lineName} 预计 ${o1.nextBus.etaMinutes} 分钟后到达梅家浜路站，现在穿鞋出门到站刚好无缝上车！一趟直达漕河泾。`;
+          } else if (o1.decision.level === 'missed') {
+            aiTitle.innerText = `💡 早晨推荐：走【地铁9号线 ➔ ${o2.lineName}】`;
+            aiDesc.innerText = `${o1.lineName} 刚刚进站已来不及出门，建议乘地铁9号线到九亭换乘松江40路更稳妥！`;
+          } else {
+            aiTitle.innerText = `💡 早晨通勤提示`;
+            aiDesc.innerText = `松莘B线预计还有 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等发车')}；地铁九亭站松江40路预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等发车')}。请合理安排出门时间！`;
+          }
+        } else {
+          if (o1.decision.level === 'perfect') {
+            aiTitle.innerText = `💡 下班推荐：优先走【${o1.lineName}】`;
+            aiDesc.innerText = `${o1.lineName} 预计 ${o1.nextBus.etaMinutes} 分钟后到达，骑行 1.5km 约 6 分钟，现在扫车出发刚好直接上车！一趟车直达！`;
+          } else if (o1.decision.level === 'missed' && o2.decision.level !== 'missed') {
+            aiTitle.innerText = `💡 下班推荐：走楼下【${o2.lineName} + 地铁】`;
+            aiDesc.innerText = `${o1.lineName} 即将进站已赶不上，不要冒险狂奔！直接下楼坐 ${o2.lineName} 去九亭换地铁更稳妥。`;
+          } else if (o2.nextBus && o2.nextBus.etaMinutes <= 5) {
+            aiTitle.innerText = `💡 下班推荐：下楼坐【${o2.lineName}】`;
+            aiDesc.innerText = `楼下 ${o2.lineName} 还有 ${o2.nextBus.etaMinutes} 分钟进站，立即下楼就能坐上！`;
+          } else {
+            aiTitle.innerText = `💡 下班通勤提示`;
+            aiDesc.innerText = `松莘B线预计还有 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等发车')}；松江40路预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等发车')}。请根据工位与骑车用时合理选择！`;
+          }
+        }
+      }
+    }
+
+    function manualRefresh() {
+      fetchData();
+    }
+
+    // Auto timer
+    setInterval(() => {
+      countdownSec--;
+      const updateTimer = document.getElementById('updateTimer');
+      if (countdownSec <= 0) {
+        countdownSec = 20;
+        fetchData();
+      } else {
+        updateTimer.innerText = `${countdownSec}s`;
+      }
+    }, 1000);
+
+    // Initial load
+    fetchData();
+  </script>
+</body>
+</html>
