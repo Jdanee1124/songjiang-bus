@@ -118,14 +118,19 @@ function parseTimeStrDiffMinutes(timeStr) {
   const m = parseInt(parts[1], 10);
   if (isNaN(h) || isNaN(m)) return null;
 
+  // Always calculate relative to Shanghai Time (UTC+8)
   const now = new Date();
-  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
-  let diffSec = Math.round((target.getTime() - now.getTime()) / 1000);
-  if (diffSec < -3600 * 12) {
-    target.setDate(target.getDate() + 1);
-    diffSec = Math.round((target.getTime() - now.getTime()) / 1000);
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const shanghaiNow = new Date(utcMs + 8 * 3600000);
+
+  const targetMinutes = h * 60 + m;
+  const currentMinutes = shanghaiNow.getHours() * 60 + shanghaiNow.getMinutes();
+
+  let diff = targetMinutes - currentMinutes;
+  if (diff < -720) {
+    diff += 1440;
   }
-  return Math.round(diffSec / 60);
+  return diff;
 }
 
 export async function request(url, params) {
