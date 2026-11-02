@@ -111,6 +111,23 @@ function rawGet(url) {
   });
 }
 
+function parseTimeStrDiffMinutes(timeStr) {
+  if (!timeStr || !timeStr.includes(":")) return null;
+  const parts = timeStr.split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+  let diffSec = Math.round((target.getTime() - now.getTime()) / 1000);
+  if (diffSec < -3600 * 12) {
+    target.setDate(target.getDate() + 1);
+    diffSec = Math.round((target.getTime() - now.getTime()) / 1000);
+  }
+  return Math.round(diffSec / 60);
+}
+
 export async function request(url, params) {
   const signed = { ...params, cryptoSign: cryptoSign(params) };
   const u = new URL(url);
@@ -262,38 +279,78 @@ export async function fetchLiveStatus(option) {
       })
       .sort((a, b) => a.stopsAway - b.stopsAway);
 
-    const nextBus = approaching[0] || null;
+    const preStartTime = raw.preStartTime || "";
+    const preArrivalTime = raw.preArrivalTime || "";
+    const minutesToStart = parseTimeStrDiffMinutes(preStartTime);
+    const minutesToArrival = parseTimeStrDiffMinutes(preArrivalTime);
+
+    let scheduledDeparture = null;
+    if (preStartTime || preArrivalTime) {
+      scheduledDeparture = {
+        preStartTime,
+        preArrivalTime,
+        minutesToStart,
+        minutesToArrival,
+        firstTip: raw.textTip?.firstTip || ""
+      };
+    }
+
+    let displayBus = approaching[0] || null;
+    let isScheduled = false;
+
+    // If no running bus on road, but we have next departure prediction from terminal:
+    if (!displayBus && (preStartTime || preArrivalTime)) {
+      isScheduled = true;
+      displayBus = {
+        busId: "scheduled",
+        isScheduled: true,
+        order: 0,
+        stopsAway: null,
+        distanceMeters: null,
+        etaMinutes: minutesToArrival !== null ? Math.max(0, minutesToArrival) : null,
+        etaTimeStr: preArrivalTime || preStartTime,
+        preStartTime,
+        preArrivalTime,
+        speed: 0
+      };
+    }
+
+    const nextBus = displayBus;
     const secondBus = approaching[1] || null;
 
     // Decision calculation
     let decision = {
-      level: "normal", // 'urgent', 'perfect', 'wait', 'missed'
+      level: "normal",
       tag: "查询中",
       tip: "",
       color: "#6b7280"
     };
 
+    const isMorning = option.id.includes("morning");
+    const prep = option.prepTimeMinutes;
+
     if (!nextBus) {
-      if (raw.depDesc) {
-        decision = {
-          level: "wait",
-          tag: "等待发车",
-          tip: raw.depDesc,
-          color: "#f59e0b"
-        };
-      } else {
-        decision = {
-          level: "wait",
-          tag: "暂无来车",
-          tip: "当前区间暂未发现运行车辆，可能在总站等待发车",
-          color: "#9ca3af"
-        };
-      }
+      decision = {
+        level: "wait",
+        tag: "等待发车",
+        tip: raw.depDesc ? `上一班 ${raw.depDesc}；下一班暂未安排，请关注后续调度。` : "当前区间暂未发现运行车辆，可能在总站等待发车",
+        color: "#f59e0b"
+      };
+    } else if (nextBus.isScheduled) {
+      const eta = nextBus.etaMinutes;
+      const startTip = preStartTime ? `预计【${preStartTime}】从总站发车` : "即将从总站发车";
+      const arriveTip = preArrivalTime ? `，约【${preArrivalTime}】到达本站` : "";
+      const etaText = eta !== null ? `（约 ${eta} 分钟后）` : "";
+      const depDescPrefix = raw.depDesc ? (raw.depDesc.startsWith("上一班") ? `${raw.depDesc}。` : `上一班 ${raw.depDesc}。`) : "";
+
+      decision = {
+        level: "wait",
+        tag: preStartTime ? `预计 ${preStartTime} 发车` : "等待总站发车",
+        tip: `${depDescPrefix}下一班${startTip}${arriveTip}${etaText}。时间充裕，不用着急！`,
+        color: "#f59e0b"
+      };
     } else {
       const eta = nextBus.etaMinutes;
-      const prep = option.prepTimeMinutes; // 骑车或步行用时
-
-      const isMorning = option.id.includes("morning");
 
       if (eta < prep - 1) {
         decision = {
@@ -348,6 +405,7 @@ export async function fetchLiveStatus(option) {
       nextBus,
       secondBus,
       depDesc: raw.depDesc || "",
+      scheduledDeparture,
       decision,
     };
   } catch (err) {

@@ -431,7 +431,7 @@
         }
 
         let etaHtml = '';
-        if (next) {
+        if (next && !next.isScheduled) {
           etaHtml = `
             <div class="eta-box">
               <span class="eta-number" style="color: ${dec.color}">${next.etaMinutes}</span>
@@ -439,10 +439,18 @@
               <span class="eta-detail">还有 ${next.stopsAway} 站 ${next.distanceMeters ? `· ${(next.distanceMeters / 1000).toFixed(1)}km` : ''}</span>
             </div>
           `;
+        } else if (next && next.isScheduled) {
+          etaHtml = `
+            <div class="eta-box">
+              <span class="eta-number" style="color: ${dec.color}">${next.etaMinutes !== null ? '~' + next.etaMinutes : next.preArrivalTime}</span>
+              <span class="eta-unit">${next.etaMinutes !== null ? '分钟' : ''}</span>
+              <span class="eta-detail" style="color: #fbbf24">⏳ 下一班预计 ${next.preStartTime ? next.preStartTime + ' 发车' : ''} ${next.preArrivalTime ? '· ' + next.preArrivalTime + ' 到站' : ''}</span>
+            </div>
+          `;
         } else {
           etaHtml = `
             <div class="eta-waiting">
-              ${opt.depDesc || '暂无运行车辆'}
+              ${opt.depDesc || '暂无发车调度计划'}
             </div>
           `;
         }
@@ -477,6 +485,18 @@
               <span class="meta-label">出行耗时</span>
               <span class="meta-value">${opt.totalTripTime}</span>
             </div>
+            ${opt.scheduledDeparture && opt.scheduledDeparture.preStartTime ? `
+              <div class="meta-row" style="color: #fbbf24;">
+                <span class="meta-label">下一班发车</span>
+                <span class="meta-value">${opt.scheduledDeparture.preStartTime}（${opt.scheduledDeparture.minutesToStart != null ? '约 ' + opt.scheduledDeparture.minutesToStart + ' 分钟后' : '近期'}）</span>
+              </div>
+            ` : ''}
+            ${opt.depDesc ? `
+              <div class="meta-row" style="color: #9ca3af;">
+                <span class="meta-label">上一班动态</span>
+                <span class="meta-value">${opt.depDesc}</span>
+              </div>
+            ` : ''}
             ${opt.secondBus ? `
               <div class="meta-row" style="color: #9ca3af; margin-top:2px;">
                 <span class="meta-label">再下一班</span>
