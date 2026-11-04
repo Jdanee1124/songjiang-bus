@@ -1,4 +1,4 @@
-import { ROUTES, fetchLiveStatus } from "../transit.mjs";
+import { ROUTES, fetchLiveStatus, fetchSongjiangWeather } from "../transit.mjs";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -14,13 +14,18 @@ export default async function handler(req, res) {
   const routeConfig = ROUTES[mode] || ROUTES.evening;
 
   try {
-    const results = await Promise.all(routeConfig.options.map(opt => fetchLiveStatus(opt)));
+    const [weather, ...options] = await Promise.all([
+      fetchSongjiangWeather(),
+      ...routeConfig.options.map(opt => fetchLiveStatus(opt))
+    ]);
+
     res.status(200).json({
       mode: routeConfig.mode,
       title: routeConfig.title,
       description: routeConfig.description,
       timestamp: new Date().toISOString(),
-      options: results
+      weather,
+      options
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -2,7 +2,7 @@ import * as http from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROUTES, fetchLiveStatus } from "./transit.mjs";
+import { ROUTES, fetchLiveStatus, fetchSongjiangWeather } from "./transit.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,15 +30,17 @@ const server = http.createServer(async (req, res) => {
     const routeConfig = ROUTES[mode] || ROUTES.evening;
 
     try {
-      // Fetch both options concurrently
-      const optionPromises = routeConfig.options.map(opt => fetchLiveStatus(opt));
-      const results = await Promise.all(optionPromises);
+      const [weather, ...results] = await Promise.all([
+        fetchSongjiangWeather(),
+        ...routeConfig.options.map(opt => fetchLiveStatus(opt))
+      ]);
 
       const responsePayload = {
         mode: routeConfig.mode,
         title: routeConfig.title,
         description: routeConfig.description,
         timestamp: new Date().toISOString(),
+        weather,
         options: results
       };
 

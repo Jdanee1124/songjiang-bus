@@ -133,6 +133,93 @@ function parseTimeStrDiffMinutes(timeStr) {
   return diff;
 }
 
+function getWmoWeatherInfo(code) {
+  switch (code) {
+    case 0: return { text: "晴朗", icon: "☀️", isRain: false };
+    case 1: return { text: "晴间多云", icon: "🌤️", isRain: false };
+    case 2: return { text: "多云", icon: "⛅", isRain: false };
+    case 3: return { text: "阴天", icon: "☁️", isRain: false };
+    case 45: case 48: return { text: "有雾", icon: "🌫️", isRain: false };
+    case 51: return { text: "毛毛雨", icon: "🌦️", isRain: true };
+    case 53: case 55: return { text: "细小雨", icon: "🌦️", isRain: true };
+    case 61: return { text: "小雨", icon: "🌧️", isRain: true };
+    case 63: return { text: "中雨", icon: "🌧️", isRain: true };
+    case 65: return { text: "大雨", icon: "🌧️", isRain: true };
+    case 71: case 73: case 75: return { text: "雨夹雪", icon: "❄️", isRain: true };
+    case 80: return { text: "小阵雨", icon: "🌦️", isRain: true };
+    case 81: return { text: "中阵雨", icon: "🌧️", isRain: true };
+    case 82: return { text: "强阵雨", icon: "⛈️", isRain: true };
+    case 95: case 96: case 99: return { text: "雷阵雨", icon: "⛈️", isRain: true };
+    default: return { text: "多云", icon: "⛅", isRain: false };
+  }
+}
+
+function getWindDesc(speedKmH) {
+  if (speedKmH < 1) return "无风";
+  if (speedKmH <= 5) return "1级 软风";
+  if (speedKmH <= 11) return "2级 轻风";
+  if (speedKmH <= 19) return "3级 微风";
+  if (speedKmH <= 28) return "4级 和风";
+  if (speedKmH <= 38) return "5级 清风";
+  return "6级以上 强风";
+}
+
+let weatherCache = {
+  data: null,
+  timestamp: 0
+};
+
+export async function fetchSongjiangWeather() {
+  const now = Date.now();
+  if (weatherCache.data && (now - weatherCache.timestamp < 180000)) {
+    return weatherCache.data;
+  }
+
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=31.03&longitude=121.22&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m&timezone=Asia%2FShanghai";
+    const res = await fetch(url, { headers: { "User-Agent": "SongjiangBus/1.0" }, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error("Weather HTTP " + res.status);
+    const raw = await res.json();
+    const c = raw.current;
+
+    const wmo = getWmoWeatherInfo(c.weather_code);
+    const windDesc = getWindDesc(c.wind_speed_10m);
+    const isRaining = (c.precipitation > 0 || c.rain > 0 || wmo.isRain);
+
+    const formatted = {
+      city: "松江区",
+      temperature: Math.round(c.temperature_2m),
+      apparentTemperature: Math.round(c.apparent_temperature * 10) / 10,
+      weatherText: wmo.text,
+      weatherIcon: wmo.icon,
+      precipitation: c.precipitation ?? 0,
+      isRaining,
+      windSpeed: Math.round(c.wind_speed_10m),
+      windDesc,
+      humidity: c.relative_humidity_2m,
+      updateTime: c.time ? c.time.replace("T", " ") : new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    };
+
+    weatherCache = { data: formatted, timestamp: now };
+    return formatted;
+  } catch (err) {
+    if (weatherCache.data) return weatherCache.data;
+    return {
+      city: "松江区",
+      temperature: 17,
+      apparentTemperature: 17,
+      weatherText: "阴天",
+      weatherIcon: "☁️",
+      precipitation: 0,
+      isRaining: false,
+      windSpeed: 15,
+      windDesc: "3级 微风",
+      humidity: 85,
+      updateTime: "实时"
+    };
+  }
+}
+
 export async function request(url, params) {
   const signed = { ...params, cryptoSign: cryptoSign(params) };
   const u = new URL(url);

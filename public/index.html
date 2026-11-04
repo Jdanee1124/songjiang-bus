@@ -129,6 +129,85 @@
       box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
     }
 
+    /* Real-time Weather Panel */
+    .weather-panel {
+      background: rgba(22, 30, 46, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 12px 16px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .weather-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .weather-icon {
+      font-size: 32px;
+      line-height: 1;
+    }
+
+    .weather-temp-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .weather-temp {
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1;
+    }
+
+    .weather-tag {
+      font-size: 13px;
+      font-weight: 600;
+      color: #93c5fd;
+    }
+
+    .weather-sub {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 3px;
+    }
+
+    .weather-right {
+      display: flex;
+      gap: 14px;
+    }
+
+    .weather-metric {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .metric-label {
+      font-size: 10px;
+      color: #9ca3af;
+      letter-spacing: 0.3px;
+    }
+
+    .metric-val {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e5e7eb;
+    }
+
+    .metric-val.rain-alert {
+      color: #38bdf8;
+      font-weight: 800;
+    }
+
     /* AI Recommendation Banner */
     .ai-banner {
       background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
@@ -343,6 +422,30 @@
       </div>
     </div>
 
+    <!-- Real-time Songjiang Weather Panel -->
+    <div class="weather-panel" id="weatherPanel">
+      <div class="weather-left">
+        <span class="weather-icon" id="weatherIcon">⛅</span>
+        <div>
+          <div class="weather-temp-row">
+            <span class="weather-temp" id="weatherTemp">--°</span>
+            <span class="weather-tag" id="weatherTag">松江 · 获取中</span>
+          </div>
+          <div class="weather-sub" id="weatherSub">实时气象数据接入中...</div>
+        </div>
+      </div>
+      <div class="weather-right">
+        <div class="weather-metric">
+          <span class="metric-label">降水实况</span>
+          <span class="metric-val" id="weatherRain">--</span>
+        </div>
+        <div class="weather-metric">
+          <span class="metric-label">风况</span>
+          <span class="metric-val" id="weatherWind">--</span>
+        </div>
+      </div>
+    </div>
+
     <!-- AI Recommendation -->
     <div class="ai-banner" id="aiBanner">
       <div class="ai-banner-icon">⚡</div>
@@ -411,11 +514,31 @@
     }
 
     function renderData(data) {
-      const { title, options } = data;
+      const { title, options, weather } = data;
       const cardList = document.getElementById('cardList');
       cardList.innerHTML = '';
 
+      // Update Weather Panel
+      if (weather) {
+        document.getElementById('weatherIcon').innerText = weather.weatherIcon || '⛅';
+        document.getElementById('weatherTemp').innerText = `${weather.temperature}°`;
+        document.getElementById('weatherTag').innerText = `松江 · ${weather.weatherText}`;
+        document.getElementById('weatherSub').innerText = `体感 ${weather.apparentTemperature}° · 湿度 ${weather.humidity}%`;
+        
+        const rainEl = document.getElementById('weatherRain');
+        if (weather.isRaining) {
+          rainEl.innerText = `${weather.precipitation > 0 ? weather.precipitation + 'mm' : '有降雨'}`;
+          rainEl.classList.add('rain-alert');
+        } else {
+          rainEl.innerText = '无降雨';
+          rainEl.classList.remove('rain-alert');
+        }
+
+        document.getElementById('weatherWind').innerText = `${weather.windDesc}`;
+      }
+
       let bestOption = null;
+      const isRaining = weather && weather.isRaining;
 
       options.forEach((opt, idx) => {
         const card = document.createElement('div');
@@ -424,10 +547,14 @@
         const dec = opt.decision || {};
         const next = opt.nextBus;
 
-        // Check if this option is recommended
-        if (dec.level === 'perfect' && !bestOption) {
-          bestOption = opt;
-          card.classList.add('highlight');
+        // Check if this option is recommended (if raining, strongly favor opt 2)
+        if (isRaining) {
+          if (idx === 1) card.classList.add('highlight');
+        } else {
+          if (dec.level === 'perfect' && !bestOption) {
+            bestOption = opt;
+            card.classList.add('highlight');
+          }
         }
 
         let etaHtml = '';
@@ -455,17 +582,28 @@
           `;
         }
 
+        // Special weather notice for bike route
+        let bikeRainNotice = '';
+        if (isRaining && opt.id.includes('songxin_b')) {
+          bikeRainNotice = `
+            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-bottom: 8px;">
+              🌧️ 当前有雨，路面湿滑，不建议 1.5km 骑行！
+            </div>
+          `;
+        }
+
         card.innerHTML = `
           <div class="card-top">
             <div class="route-header">
               <span class="line-title">${opt.lineName}</span>
               <span class="route-tag">${opt.badge}</span>
             </div>
-            <div class="decision-badge" style="background: ${dec.color || '#3b82f6'}">
-              ${dec.tag || '运行中'}
+            <div class="decision-badge" style="background: ${isRaining && opt.id.includes('songxin_b') ? '#ef4444' : (dec.color || '#3b82f6')}">
+              ${isRaining && opt.id.includes('songxin_b') ? '雨天不建议' : (dec.tag || '运行中')}
             </div>
           </div>
 
+          ${bikeRainNotice}
           ${etaHtml}
 
           <div class="decision-tip">
@@ -517,7 +655,14 @@
         const o1 = options[0];
         const o2 = options[1];
 
-        if (currentMode === 'morning') {
+        if (isRaining) {
+          aiTitle.innerText = `🌧️ 松江天气：${weather.weatherText} · 降雨量 ${weather.precipitation}mm`;
+          if (currentMode === 'morning') {
+            aiDesc.innerText = `路面湿滑且有雨！强烈推荐乘【地铁9号线 ➔ ${o2.lineName}】，下车直接进公司，避免雨中骑行 1.5km 淋雨！`;
+          } else {
+            aiDesc.innerText = `路面湿滑且在下雨！强烈建议放弃方案一（1.5km 骑行），直接走楼下【${o2.lineName} ➔ 地铁9号线】更稳妥安全！`;
+          }
+        } else if (currentMode === 'morning') {
           if (o1.decision.level === 'perfect') {
             aiTitle.innerText = `💡 早晨推荐：优先走【${o1.lineName}】`;
             aiDesc.innerText = `${o1.lineName} 预计 ${o1.nextBus.etaMinutes} 分钟后到达梅家浜路站，现在穿鞋出门到站刚好无缝上车！一趟直达漕河泾。`;
