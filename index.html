@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="松江通勤">
+  <meta name="theme-color" content="#070b14">
+  <title>松江通勤实时决策</title>
+  
+  <!-- Apple Touch Icon for Home Screen -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230f172a'/><circle cx='50' cy='50' r='38' fill='none' stroke='%2338bdf8' stroke-width='4'/><path d='M32 30 C32 24, 68 24, 68 30 L68 62 C68 68, 32 68, 32 62 Z' fill='%23ffffff'/><rect x='36' y='32' width='28' height='16' rx='3' fill='%230f172a'/><circle cx='41' cy='56' r='3' fill='%230ea5e9'/><circle cx='59' cy='56' r='3' fill='%230ea5e9'/><rect x='36' y='66' width='6' height='7' rx='2' fill='%23ffffff'/><rect x='58' y='66' width='6' height='7' rx='2' fill='%23ffffff'/></svg>">
+
+  <style>
+    :root {
+      --bg: #070b14;
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.68);
+      --text-tertiary: rgba(255, 255, 255, 0.42);
+      
+      /* Liquid Glass Tokens */
+      --glass-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.03) 100%);
+      --glass-surface-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%);
+      --glass-border: rgba(255, 255, 255, 0.15);
+      --glass-highlight: inset 0 1px 1px 0 rgba(255, 255, 255, 0.38);
+      --glass-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.5);
+      
+      /* Accent Tones */
+      --accent-cyan: #38bdf8;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-violet: #818cf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      padding: max(env(safe-area-inset-top, 20px), 16px) 16px max(env(safe-area-inset-bottom, 24px), 24px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Liquid Mesh Background */
+    .ambient-mesh {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .ambient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(85px);
+      opacity: 0.55;
+      animation: floatSlow 20s ease-in-out infinite alternate;
+    }
+
+    .orb-1 {
+      width: 340px;
+      height: 340px;
+      top: -60px;
+      left: -80px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.32) 0%, rgba(14, 165, 233, 0) 70%);
+    }
+
+    .orb-2 {
+      width: 320px;
+      height: 320px;
+      top: 260px;
+      right: -80px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0) 70%);
+      animation-delay: -7s;
+    }
+
+    .orb-3 {
+      width: 300px;
+      height: 300px;
+      bottom: 40px;
+      left: -40px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 70%);
+      animation-delay: -12s;
+    }
+
+    @keyframes floatSlow {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(25px, 30px) scale(1.08); }
+      100% { transform: translate(-15px, -20px) scale(0.95); }
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Top Bar */
+    .header {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding-top: 6px;
+    }
+
+    .app-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 2px;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon-box {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(99, 102, 241, 0.25) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 0 4px 12px rgba(14, 165, 233, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .brand-icon-box svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-title {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .app-subtitle {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      letter-spacing: 0.2px;
+      font-weight: 500;
+    }
+
+    /* Refresh Pill */
+    .refresh-capsule {
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .refresh-capsule:active {
+      transform: scale(0.96);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .refresh-icon-svg {
+      width: 13px;
+      height: 13px;
+      stroke: var(--accent-cyan);
+      stroke-width: 2.2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.4s ease;
+    }
+
+    .rotating {
+      animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    /* iOS Liquid Segmented Capsule */
+    .mode-switch-capsule {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      padding: 3px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      position: relative;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 9px 0;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 7px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .mode-btn svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .mode-btn.active {
+      color: #ffffff;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.07) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      box-shadow: 
+        inset 0 1px 1px 0 rgba(255, 255, 255, 0.6),
+        0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    .mode-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Apple Liquid Glass Card Foundation */
+    .glass-card {
+      background: var(--glass-surface);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      backdrop-filter: blur(30px) saturate(190%);
+      -webkit-backdrop-filter: blur(30px) saturate(190%);
+      box-shadow: var(--glass-highlight), var(--glass-shadow);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    /* Specular Light Flare along top edge */
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 15%;
+      right: 15%;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 50%, rgba(255,255,255,0) 100%);
+      pointer-events: none;
+    }
+
+    /* Weather Capsule (Apple Weather Style) */
+    .weather-capsule {
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .weather-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .weather-glyph-wrapper {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    }
+
+    .weather-temp-row {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+    }
+
+    .weather-temp {
+      font-size: 26px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -1px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .weather-tag {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent-cyan);
+    }
+
+    .weather-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      font-weight: 400;
+    }
+
+    .weather-metrics-box {
+      display: flex;
+      gap: 14px;
+      padding-left: 12px;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .weather-metric-col {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .metric-caption {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .metric-data {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-data.rain-active {
+      color: var(--accent-cyan);
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Apple Intelligence Style Decision Ribbon */
+    .smart-ribbon {
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(129, 140, 248, 0.08) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+    }
+
+    .smart-ribbon-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.4);
+      margin-top: 1px;
+    }
+
+    .smart-ribbon-icon svg {
+      width: 14px;
+      height: 14px;
+      fill: #ffffff;
+    }
+
+    .smart-ribbon-content {
+      flex: 1;
+    }
+
+    .smart-ribbon-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #bae6fd;
+      letter-spacing: -0.1px;
+      margin-bottom: 2px;
+    }
+
+    .smart-ribbon-desc {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      line-height: 1.45;
+    }
+
+    /* Route Cards */
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .route-card {
+      padding: 20px 20px 18px;
+    }
+
+    /* Highlighted / Recommended Card */
+    .route-card.highlight {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.13) 0%, rgba(99, 102, 241, 0.06) 100%);
+      border-color: rgba(56, 189, 248, 0.42);
+      box-shadow: 
+        inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.5),
+        0 20px 48px -10px rgba(14, 165, 233, 0.28);
+    }
+
+    .route-card.highlight::before {
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0) 0%, rgba(56, 189, 248, 0.8) 50%, rgba(56, 189, 248, 0) 100%);
+    }
+
+    .card-head-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .route-identity {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .line-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.3px;
+    }
+
+    .badge-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-secondary);
+      letter-spacing: 0.2px;
+    }
+
+    /* Status Pill */
+    .status-capsule {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Hero ETA Section (Apple Fitness / Watch Style) */
+    .eta-hero {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .eta-digits {
+      font-size: 52px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -2.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eta-unit-label {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: -0.2px;
+    }
+
+    .eta-meta-pill {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Live Radar Pulse Indicator */
+    .live-beacon {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--accent-emerald);
+      position: relative;
+      display: inline-block;
+    }
+
+    .live-beacon::after {
+      content: "";
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background-color: var(--accent-emerald);
+      opacity: 0.6;
+      animation: beaconPulse 1.8s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    @keyframes beaconPulse {
+      0% { transform: scale(0.6); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    .eta-empty-state {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent-amber);
+      padding: 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Commute Journey Timeline (Step by Step) */
+    .commute-timeline {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      margin: 10px 0 12px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      overflow-x: auto;
+    }
+
+    .timeline-step {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    .timeline-step svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--accent-cyan);
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .timeline-arrow {
+      color: var(--text-tertiary);
+      font-size: 12px;
+    }
+
+    /* Dispatch Advice Callout */
+    .dispatch-callout {
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 14px;
+    }
+
+    /* Station Meta Table */
+    .route-details-table {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .detail-label {
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .detail-label svg {
+      width: 13px;
+      height: 13px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .detail-value {
+      color: #ffffff;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .detail-value.time-highlight {
+      color: #fde047;
+      font-weight: 700;
+    }
+
+    /* Rain Hazard Alert Box */
+    .rain-warning-box {
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: #fda4af;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rain-warning-box svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      padding: 18px 0 8px;
+      line-height: 1.6;
+    }
+
+    .footer-link {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-mesh">
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
+    <div class="ambient-orb orb-3"></div>
+  </div>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="app-title-row">
+        <div class="brand-mark">
+          <div class="brand-icon-box">
+            <!-- Apple Transit Bus SF Symbol -->
+            <svg viewBox="0 0 24 24">
+              <rect x="4" y="3" width="16" height="16" rx="4" />
+              <path d="M4 11h16" />
+              <circle cx="8" cy="15" r="1.5" />
+              <circle cx="16" cy="15" r="1.5" />
+              <path d="M6 19v2M18 19v2" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1 class="app-title">松江通勤决策</h1>
+            <span class="app-subtitle">实时调度与避雨协同系统</span>
+          </div>
+        </div>
+
+        <div class="refresh-capsule" id="refreshBtn" onclick="manualRefresh()" title="点击手动刷新">
+          <svg class="refresh-icon-svg" id="refreshIcon" viewBox="0 0 24 24">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M16 21h5v-5" />
+          </svg>
+          <span id="updateTimer">实时</span>
+        </div>
+      </div>
+
+      <!-- iOS Liquid Segmented Capsule -->
+      <nav class="mode-switch-capsule">
+        <button class="mode-btn active" id="btnEvening" onclick="switchMode('evening')">
+          <!-- Briefcase SVG -->
+          <svg viewBox="0 0 24 24">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+          </svg>
+          下班回家
+        </button>
+        <button class="mode-btn" id="btnMorning" onclick="switchMode('morning')">
+          <!-- Sunrise SVG -->
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2v6M4.93 10.93l4.24-4.24M19.07 10.93l-4.24-4.24M2 18h20M20 14a8 8 0 0 0-16 0" />
+          </svg>
+          早晨上班
+        </button>
+      </nav>
+    </header>
+
+    <!-- Apple Weather Capsule Panel -->
+    <section class="glass-card weather-capsule" id="weatherPanel">
+      <div class="weather-left">
+        <div class="weather-glyph-wrapper" id="weatherIcon">
+          ⛅
+        </div>
+        <div>
+          <div class="weather-temp-row">
+            <span class="weather-temp" id="weatherTemp">--°</span>
+            <span class="weather-tag" id="weatherTag">松江 · 同步中</span>
+          </div>
+          <div class="weather-sub" id="weatherSub">实时气象专线接入中...</div>
+        </div>
+      </div>
+      <div class="weather-metrics-box">
+        <div class="weather-metric-col">
+          <span class="metric-caption">降水实况</span>
+          <span class="metric-data" id="weatherRain">--</span>
+        </div>
+        <div class="weather-metric-col">
+          <span class="metric-caption">风力</span>
+          <span class="metric-data" id="weatherWind">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Apple Intelligence Decision Ribbon -->
+    <section class="glass-card smart-ribbon" id="aiBanner">
+      <div class="smart-ribbon-icon">
+        <!-- Sparkle SF Symbol -->
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
+        </svg>
+      </div>
+      <div class="smart-ribbon-content">
+        <div class="smart-ribbon-title" id="aiTitle">实时测算中...</div>
+        <div class="smart-ribbon-desc" id="aiDesc">正在同步松莘B线与松江40路卫星定位...</div>
+      </div>
+    </section>
+
+    <!-- Route Cards Container -->
+    <main class="card-list" id="cardList">
+      <!-- Skeleton Loading Card -->
+      <article class="glass-card route-card">
+        <div class="card-head-row">
+          <div class="line-name">线路定位中...</div>
+        </div>
+        <div class="eta-hero">
+          <div class="eta-digits" style="color: rgba(255,255,255,0.3)">--</div>
+        </div>
+      </article>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div>轻触右上角随时手动同步 · 20秒自动巡检</div>
+      <div>Safari 轻触「分享」➜「添加到主屏幕」即享独立 App 体验</div>
+    </footer>
+  </div>
+
+  <script>
+    let currentMode = 'evening';
+    let countdownSec = 20;
+
+    // Detect time on load: before 12:00 -> morning, after 12:00 -> evening
+    const hour = new Date().getHours();
+    if (hour < 12) {
+      currentMode = 'morning';
+      document.getElementById('btnMorning').classList.add('active');
+      document.getElementById('btnEvening').classList.remove('active');
+    }
+
+    function switchMode(mode) {
+      if (currentMode === mode) return;
+      currentMode = mode;
+      document.getElementById('btnEvening').classList.toggle('active', mode === 'evening');
+      document.getElementById('btnMorning').classList.toggle('active', mode === 'morning');
+      fetchData();
+    }
+
+    async function fetchData() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      refreshIcon.classList.add('rotating');
+
+      try {
+        const res = await fetch(`/api/transit?mode=${currentMode}&t=${Date.now()}`);
+        const data = await res.json();
+        renderData(data);
+      } catch (e) {
+        document.getElementById('aiTitle').innerText = '网络连接提示';
+        document.getElementById('aiDesc').innerText = '获取实时位置超时，请检查网络或点击右上角刷新。';
+      } finally {
+        refreshIcon.classList.remove('rotating');
+        countdownSec = 20;
+      }
+    }
+
+    function renderData(data) {
+      if (!data) return;
+      const { title, options, weather } = data;
+      const cardList = document.getElementById('cardList');
+
+      // Update Weather Capsule
+      if (weather) {
+        const iconWrapper = document.getElementById('weatherIcon');
+        iconWrapper.innerText = weather.weatherIcon || '⛅';
+        document.getElementById('weatherTemp').innerText = `${weather.temperature ?? '--'}°`;
+        document.getElementById('weatherTag').innerText = `松江 · ${weather.weatherText || '实时'}`;
+        document.getElementById('weatherSub').innerText = `体感 ${weather.apparentTemperature ?? '--'}° · 相对湿度 ${weather.humidity ?? '--'}%`;
+        
+        const rainEl = document.getElementById('weatherRain');
+        if (weather.isRaining) {
+          rainEl.innerText = `${weather.precipitation > 0 ? weather.precipitation + 'mm' : '有降水'}`;
+          rainEl.classList.add('rain-active');
+        } else {
+          rainEl.innerText = '无降水';
+          rainEl.classList.remove('rain-active');
+        }
+
+        document.getElementById('weatherWind').innerText = `${weather.windDesc || '微风'}`;
+      }
+
+      if (!options || !Array.isArray(options) || options.length === 0) {
+        return;
+      }
+
+      cardList.innerHTML = '';
+      let bestOption = null;
+      const isRaining = weather && weather.isRaining;
+
+      options.forEach((opt, idx) => {
+        const card = document.createElement('article');
+        card.className = 'glass-card route-card';
+
+        const optId = opt.id || opt.optionId || (idx === 0 ? 'songxin_b' : 'songjiang_40');
+        const lineName = opt.lineName || (optId.includes('songxin') ? '松莘B线' : '松江40路');
+        const badge = opt.badge || (idx === 0 ? '直达专线' : '楼下近 / 需换乘');
+        const stopName = opt.stopName || (optId.includes('songxin') ? '莘砖公路千帆路' : '中心路云凯路');
+        const destStopName = opt.destStopName || (optId.includes('songxin') ? '嘉松南路梅家浜路' : '九亭地铁站');
+        const totalTripTime = opt.totalTripTime || (idx === 0 ? '~50分钟 (直达)' : '~40分钟');
+
+        const dec = opt.decision || {
+          level: 'wait',
+          tag: '运行中',
+          tip: '正在同步公交调度中心实时定位...',
+          color: '#38bdf8'
+        };
+        const next = opt.nextBus;
+
+        // Visual recommendation highlight
+        if (isRaining) {
+          if (idx === 1) card.classList.add('highlight');
+        } else {
+          if (dec.level === 'perfect' && !bestOption) {
+            bestOption = opt;
+            card.classList.add('highlight');
+          }
+        }
+
+        // ETA Hero display
+        let etaHtml = '';
+        if (next && !next.isScheduled) {
+          etaHtml = `
+            <div class="eta-hero">
+              <span class="eta-digits" style="color: ${dec.color || '#38bdf8'}">${next.etaMinutes}</span>
+              <span class="eta-unit-label">MIN 到站</span>
+              <div class="eta-meta-pill">
+                <span class="live-beacon"></span>
+                <span>剩 ${next.stopsAway} 站 ${next.distanceMeters ? `· ${(next.distanceMeters / 1000).toFixed(1)}km` : ''}</span>
+              </div>
+            </div>
+          `;
+        } else if (next && next.isScheduled) {
+          etaHtml = `
+            <div class="eta-hero">
+              <span class="eta-digits" style="color: ${dec.color || '#f59e0b'}">${next.etaMinutes !== null ? next.etaMinutes : (next.preArrivalTime || '--')}</span>
+              <span class="eta-unit-label">${next.etaMinutes !== null ? 'MIN 预计' : ''}</span>
+              <div class="eta-meta-pill" style="color: #fbbf24;">
+                <span>⏳ 下班班次 ${next.preStartTime ? next.preStartTime + ' 发车' : ''}</span>
+              </div>
+            </div>
+          `;
+        } else {
+          etaHtml = `
+            <div class="eta-empty-state">
+              <span style="font-size:16px;">⏱️</span>
+              <span>${opt.depDesc || (opt.success === false ? '卫星定位同步中...' : '暂无运行车辆')}</span>
+            </div>
+          `;
+        }
+
+        // Rain hazard warning
+        let bikeRainNotice = '';
+        if (isRaining && optId.includes('songxin_b')) {
+          bikeRainNotice = `
+            <div class="rain-warning-box">
+              <svg viewBox="0 0 24 24"><path d="M12 2v6M4.93 10.93l4.24-4.24M19.07 10.93l-4.24-4.24M2 18h20M20 14a8 8 0 0 0-16 0"/></svg>
+              <span>路面湿滑且有降雨，强烈建议放弃骑行方案，避免淋雨！</span>
+            </div>
+          `;
+        }
+
+        // Journey Steps Graphic
+        let journeyHtml = '';
+        if (optId.includes('songxin')) {
+          journeyHtml = `
+            <div class="commute-timeline">
+              <span class="timeline-step">
+                <svg viewBox="0 0 24 24"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5L9 9l3-3 4 3"/></svg>
+                扫车 1.5km (约6分)
+              </span>
+              <span class="timeline-arrow">›</span>
+              <span class="timeline-step">
+                <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="16" rx="4"/><path d="M4 11h16"/><circle cx="8" cy="15" r="1.5"/><circle cx="16" cy="15" r="1.5"/></svg>
+                ${lineName} (直达)
+              </span>
+            </div>
+          `;
+        } else {
+          journeyHtml = `
+            <div class="commute-timeline">
+              <span class="timeline-step">
+                <svg viewBox="0 0 24 24"><path d="M13 4v16M17 8l-4-4-4 4"/></svg>
+                楼下步行 (约2分)
+              </span>
+              <span class="timeline-arrow">›</span>
+              <span class="timeline-step">
+                <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="16" rx="4"/><path d="M4 11h16"/><circle cx="8" cy="15" r="1.5"/><circle cx="16" cy="15" r="1.5"/></svg>
+                松江40路
+              </span>
+              <span class="timeline-arrow">›</span>
+              <span class="timeline-step">
+                <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M8 15h.01M16 15h.01"/></svg>
+                地铁9号线
+              </span>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="card-head-row">
+            <div class="route-identity">
+              <span class="line-name">${lineName}</span>
+              <span class="badge-pill">${badge}</span>
+            </div>
+            <div class="status-capsule" style="background: ${isRaining && optId.includes('songxin_b') ? '#f43f5e' : (dec.color || '#0284c7')}">
+              ${isRaining && optId.includes('songxin_b') ? '雨天不建议' : (dec.tag || '运行中')}
+            </div>
+          </div>
+
+          ${bikeRainNotice}
+          ${etaHtml}
+          ${journeyHtml}
+
+          <div class="dispatch-callout">
+            ${dec.tip || '正在实时同步松江公交发车状态...'}
+          </div>
+
+          <div class="route-details-table">
+            <div class="detail-row">
+              <span class="detail-label">
+                <svg viewBox="0 0 24 24"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+                上车站
+              </span>
+              <span class="detail-value">${stopName}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">
+                <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                目的地
+              </span>
+              <span class="detail-value">${destStopName}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                总耗时
+              </span>
+              <span class="detail-value">${totalTripTime}</span>
+            </div>
+            ${opt.scheduledDeparture && opt.scheduledDeparture.preStartTime ? `
+              <div class="detail-row">
+                <span class="detail-label">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  下班发车
+                </span>
+                <span class="detail-value time-highlight">${opt.scheduledDeparture.preStartTime}（${opt.scheduledDeparture.minutesToStart != null ? '约 ' + opt.scheduledDeparture.minutesToStart + ' 分钟后' : '近期'}）</span>
+              </div>
+            ` : ''}
+            ${opt.depDesc ? `
+              <div class="detail-row" style="opacity: 0.7;">
+                <span class="detail-label">上一班状态</span>
+                <span class="detail-value">${opt.depDesc}</span>
+              </div>
+            ` : ''}
+            ${opt.secondBus ? `
+              <div class="detail-row" style="opacity: 0.7;">
+                <span class="detail-label">再下一班</span>
+                <span class="detail-value">约 ${opt.secondBus.etaMinutes} 分钟后（还有 ${opt.secondBus.stopsAway} 站）</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        cardList.appendChild(card);
+      });
+
+      // Update AI Banner
+      const aiTitle = document.getElementById('aiTitle');
+      const aiDesc = document.getElementById('aiDesc');
+
+      if (options.length >= 2) {
+        const o1 = options[0];
+        const o2 = options[1];
+        const o1Line = o1.lineName || '松莘B线';
+        const o2Line = o2.lineName || '松江40路';
+        const o1Dec = o1.decision || {};
+        const o2Dec = o2.decision || {};
+
+        if (isRaining) {
+          aiTitle.innerText = `🌧️ 松江天气：${weather?.weatherText || '降水'} · 降雨量 ${weather?.precipitation || 0}mm`;
+          if (currentMode === 'morning') {
+            aiDesc.innerText = `路面湿滑且有雨！强烈推荐走【地铁9号线 ➔ ${o2Line}】，下车直达公司大堂，避免雨中骑行 1.5km 淋雨！`;
+          } else {
+            aiDesc.innerText = `路面湿滑且在下雨！强烈建议放弃骑车方案，直接走楼下【${o2Line} ➔ 地铁9号线】安全避雨！`;
+          }
+        } else if (currentMode === 'morning') {
+          if (o1Dec.level === 'perfect') {
+            aiTitle.innerText = `💡 晨间通勤：推荐走【${o1Line}】`;
+            aiDesc.innerText = `${o1Line} 预计 ${o1.nextBus?.etaMinutes || 5} 分钟后到梅家浜路站，现在准备穿鞋出门，到站无缝上车直达漕河泾！`;
+          } else if (o1Dec.level === 'missed') {
+            aiTitle.innerText = `💡 晨间通勤：走【地铁9号线 ➔ ${o2Line}】`;
+            aiDesc.innerText = `${o1Line} 刚刚过站，出门已来不及！请乘地铁9号线到九亭换乘松江40路更从容。`;
+          } else {
+            aiTitle.innerText = `💡 晨间出行实时指引`;
+            aiDesc.innerText = `${o1Line} 预计 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等待调度')}；地铁九亭站 ${o2Line} 预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等待调度')}。`;
+          }
+        } else {
+          if (o1Dec.level === 'perfect') {
+            aiTitle.innerText = `💡 晚班通勤：推荐优先走【${o1Line}】`;
+            aiDesc.innerText = `${o1Line} 预计 ${o1.nextBus?.etaMinutes || 8} 分钟后到达千帆路，扫车骑行 1.5km 约 6 分钟，现在打卡出发到站刚好直接上车！一趟直达！`;
+          } else if (o1Dec.level === 'missed' && o2Dec.level !== 'missed') {
+            aiTitle.innerText = `💡 晚班通勤：下楼坐【${o2Line} + 地铁】`;
+            aiDesc.innerText = `${o1Line} 即将进站已赶不上，切勿冒险狂奔！直接下楼乘 ${o2Line} 前往九亭换地铁更稳妥。`;
+          } else if (o2.nextBus && o2.nextBus.etaMinutes <= 5) {
+            aiTitle.innerText = `💡 晚班通勤：下楼坐【${o2Line}】`;
+            aiDesc.innerText = `楼下 ${o2Line} 还有 ${o2.nextBus.etaMinutes} 分钟进站，立即下楼刚好赶上！`;
+          } else {
+            aiTitle.innerText = `💡 晚班出行双方案对比`;
+            aiDesc.innerText = `${o1Line} 预计 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等待调度')}；${o2Line} 预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等待调度')}。`;
+          }
+        }
+      }
+    }
+
+    function manualRefresh() {
+      fetchData();
+    }
+
+    // Auto timer
+    setInterval(() => {
+      countdownSec--;
+      const updateTimer = document.getElementById('updateTimer');
+      if (countdownSec <= 0) {
+        countdownSec = 20;
+        fetchData();
+      } else {
+        updateTimer.innerText = `${countdownSec}s`;
+      }
+    }, 1000);
+
+    // Initial load
+    fetchData();
+  </script>
+</body>
+</html>
