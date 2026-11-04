@@ -3,7 +3,7 @@ import * as https from "node:https";
 import * as http from "node:http";
 import * as zlib from "node:zlib";
 
-const BASE_DOMAIN = "http://web.chelaile.net.cn";
+const BASE_DOMAIN = "https://web.chelaile.net.cn";
 const BASE_URL = `${BASE_DOMAIN}/api`;
 const SIGN_SALT = "qwihrnbtmj";
 const AES_KEY = "FF32AE65FBFD19414EAAFF6291A54B42";
@@ -225,18 +225,34 @@ export async function request(url, params) {
   const u = new URL(url);
   u.search = new URLSearchParams(signed).toString();
 
-  const res = await fetch(u, {
+  const fetchOptions = {
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254160a) XWEB/18055",
       "xweb_xhr": "1",
       "Referer": "https://servicewechat.com/wx71d589ea01ce3321/814/page-frame.html",
       "Accept": "*/*"
     },
-    signal: AbortSignal.timeout(6000)
-  });
+    signal: AbortSignal.timeout(8000)
+  };
 
-  const body = await res.text();
-  return parseEncryptedEnvelope(body);
+  try {
+    const res = await fetch(u, fetchOptions);
+    const body = await res.text();
+    return parseEncryptedEnvelope(body);
+  } catch (err) {
+    // If HTTPS fails, try HTTP fallback
+    if (u.protocol === "https:") {
+      try {
+        const httpUrl = new URL(u.toString().replace(/^https:/, "http:"));
+        const httpRes = await fetch(httpUrl, fetchOptions);
+        const httpBody = await httpRes.text();
+        return parseEncryptedEnvelope(httpBody);
+      } catch (inner) {
+        throw err;
+      }
+    }
+    throw err;
+  }
 }
 
 // Transit definitions

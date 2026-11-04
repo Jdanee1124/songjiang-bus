@@ -514,16 +514,16 @@
     }
 
     function renderData(data) {
+      if (!data) return;
       const { title, options, weather } = data;
       const cardList = document.getElementById('cardList');
-      cardList.innerHTML = '';
 
       // Update Weather Panel
       if (weather) {
         document.getElementById('weatherIcon').innerText = weather.weatherIcon || '⛅';
-        document.getElementById('weatherTemp').innerText = `${weather.temperature}°`;
-        document.getElementById('weatherTag').innerText = `松江 · ${weather.weatherText}`;
-        document.getElementById('weatherSub').innerText = `体感 ${weather.apparentTemperature}° · 湿度 ${weather.humidity}%`;
+        document.getElementById('weatherTemp').innerText = `${weather.temperature ?? '--'}°`;
+        document.getElementById('weatherTag').innerText = `松江 · ${weather.weatherText || '实时'}`;
+        document.getElementById('weatherSub').innerText = `体感 ${weather.apparentTemperature ?? '--'}° · 湿度 ${weather.humidity ?? '--'}%`;
         
         const rainEl = document.getElementById('weatherRain');
         if (weather.isRaining) {
@@ -534,9 +534,14 @@
           rainEl.classList.remove('rain-alert');
         }
 
-        document.getElementById('weatherWind').innerText = `${weather.windDesc}`;
+        document.getElementById('weatherWind').innerText = `${weather.windDesc || '微风'}`;
       }
 
+      if (!options || !Array.isArray(options) || options.length === 0) {
+        return;
+      }
+
+      cardList.innerHTML = '';
       let bestOption = null;
       const isRaining = weather && weather.isRaining;
 
@@ -544,7 +549,19 @@
         const card = document.createElement('div');
         card.className = 'route-card';
 
-        const dec = opt.decision || {};
+        const optId = opt.id || opt.optionId || (idx === 0 ? 'songxin_b' : 'songjiang_40');
+        const lineName = opt.lineName || (optId.includes('songxin') ? '松莘B线' : '松江40路');
+        const badge = opt.badge || (idx === 0 ? '直达一趟车' : '楼下近 / 需换乘');
+        const stopName = opt.stopName || (optId.includes('songxin') ? '莘砖公路千帆路' : '中心路云凯路');
+        const destStopName = opt.destStopName || (optId.includes('songxin') ? '嘉松南路梅家浜路' : '九亭地铁站');
+        const totalTripTime = opt.totalTripTime || (idx === 0 ? '~50分钟 (直达)' : '~40分钟');
+
+        const dec = opt.decision || {
+          level: 'wait',
+          tag: '运行中',
+          tip: '正在同步公交调度中心实时定位...',
+          color: '#3b82f6'
+        };
         const next = opt.nextBus;
 
         // Check if this option is recommended (if raining, strongly favor opt 2)
@@ -561,7 +578,7 @@
         if (next && !next.isScheduled) {
           etaHtml = `
             <div class="eta-box">
-              <span class="eta-number" style="color: ${dec.color}">${next.etaMinutes}</span>
+              <span class="eta-number" style="color: ${dec.color || '#10b981'}">${next.etaMinutes}</span>
               <span class="eta-unit">分钟</span>
               <span class="eta-detail">还有 ${next.stopsAway} 站 ${next.distanceMeters ? `· ${(next.distanceMeters / 1000).toFixed(1)}km` : ''}</span>
             </div>
@@ -569,7 +586,7 @@
         } else if (next && next.isScheduled) {
           etaHtml = `
             <div class="eta-box">
-              <span class="eta-number" style="color: ${dec.color}">${next.etaMinutes !== null ? '~' + next.etaMinutes : next.preArrivalTime}</span>
+              <span class="eta-number" style="color: ${dec.color || '#f59e0b'}">${next.etaMinutes !== null ? '~' + next.etaMinutes : (next.preArrivalTime || '--')}</span>
               <span class="eta-unit">${next.etaMinutes !== null ? '分钟' : ''}</span>
               <span class="eta-detail" style="color: #fbbf24">⏳ 下一班预计 ${next.preStartTime ? next.preStartTime + ' 发车' : ''} ${next.preArrivalTime ? '· ' + next.preArrivalTime + ' 到站' : ''}</span>
             </div>
@@ -577,17 +594,17 @@
         } else {
           etaHtml = `
             <div class="eta-waiting">
-              ${opt.depDesc || '暂无发车调度计划'}
+              ${opt.depDesc || (opt.success === false ? '📡 卫星信号同步中...' : '暂无发车调度计划')}
             </div>
           `;
         }
 
         // Special weather notice for bike route
         let bikeRainNotice = '';
-        if (isRaining && opt.id.includes('songxin_b')) {
+        if (isRaining && optId.includes('songxin_b')) {
           bikeRainNotice = `
             <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-bottom: 8px;">
-              🌧️ 当前有雨，路面湿滑，不建议 1.5km 骑行！
+              🌧️ 当前松江有雨，路面湿滑，不建议 1.5km 骑行！
             </div>
           `;
         }
@@ -595,11 +612,11 @@
         card.innerHTML = `
           <div class="card-top">
             <div class="route-header">
-              <span class="line-title">${opt.lineName}</span>
-              <span class="route-tag">${opt.badge}</span>
+              <span class="line-title">${lineName}</span>
+              <span class="route-tag">${badge}</span>
             </div>
-            <div class="decision-badge" style="background: ${isRaining && opt.id.includes('songxin_b') ? '#ef4444' : (dec.color || '#3b82f6')}">
-              ${isRaining && opt.id.includes('songxin_b') ? '雨天不建议' : (dec.tag || '运行中')}
+            <div class="decision-badge" style="background: ${isRaining && optId.includes('songxin_b') ? '#ef4444' : (dec.color || '#3b82f6')}">
+              ${isRaining && optId.includes('songxin_b') ? '雨天不建议' : (dec.tag || '运行中')}
             </div>
           </div>
 
@@ -607,21 +624,21 @@
           ${etaHtml}
 
           <div class="decision-tip">
-            ${dec.tip || '暂无提醒'}
+            ${dec.tip || '实时调度数据正在更新...'}
           </div>
 
           <div class="route-meta">
             <div class="meta-row">
               <span class="meta-label">上车站</span>
-              <span class="meta-value">${opt.stopName}</span>
+              <span class="meta-value">${stopName}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">目的地</span>
-              <span class="meta-value">${opt.destStopName}</span>
+              <span class="meta-value">${destStopName}</span>
             </div>
             <div class="meta-row">
               <span class="meta-label">出行耗时</span>
-              <span class="meta-value">${opt.totalTripTime}</span>
+              <span class="meta-value">${totalTripTime}</span>
             </div>
             ${opt.scheduledDeparture && opt.scheduledDeparture.preStartTime ? `
               <div class="meta-row" style="color: #fbbf24;">
@@ -654,38 +671,42 @@
       if (options.length >= 2) {
         const o1 = options[0];
         const o2 = options[1];
+        const o1Line = o1.lineName || '松莘B线';
+        const o2Line = o2.lineName || '松江40路';
+        const o1Dec = o1.decision || {};
+        const o2Dec = o2.decision || {};
 
         if (isRaining) {
-          aiTitle.innerText = `🌧️ 松江天气：${weather.weatherText} · 降雨量 ${weather.precipitation}mm`;
+          aiTitle.innerText = `🌧️ 松江天气：${weather?.weatherText || '有雨'} · 降雨量 ${weather?.precipitation || 0}mm`;
           if (currentMode === 'morning') {
-            aiDesc.innerText = `路面湿滑且有雨！强烈推荐乘【地铁9号线 ➔ ${o2.lineName}】，下车直接进公司，避免雨中骑行 1.5km 淋雨！`;
+            aiDesc.innerText = `路面湿滑且有雨！强烈推荐乘【地铁9号线 ➔ ${o2Line}】，下车直接进公司，避免雨中骑行 1.5km 淋雨！`;
           } else {
-            aiDesc.innerText = `路面湿滑且在下雨！强烈建议放弃方案一（1.5km 骑行），直接走楼下【${o2.lineName} ➔ 地铁9号线】更稳妥安全！`;
+            aiDesc.innerText = `路面湿滑且在下雨！强烈建议放弃方案一（1.5km 骑行），直接走楼下【${o2Line} ➔ 地铁9号线】更稳妥安全！`;
           }
         } else if (currentMode === 'morning') {
-          if (o1.decision.level === 'perfect') {
-            aiTitle.innerText = `💡 早晨推荐：优先走【${o1.lineName}】`;
-            aiDesc.innerText = `${o1.lineName} 预计 ${o1.nextBus.etaMinutes} 分钟后到达梅家浜路站，现在穿鞋出门到站刚好无缝上车！一趟直达漕河泾。`;
-          } else if (o1.decision.level === 'missed') {
-            aiTitle.innerText = `💡 早晨推荐：走【地铁9号线 ➔ ${o2.lineName}】`;
-            aiDesc.innerText = `${o1.lineName} 刚刚进站已来不及出门，建议乘地铁9号线到九亭换乘松江40路更稳妥！`;
+          if (o1Dec.level === 'perfect') {
+            aiTitle.innerText = `💡 早晨推荐：优先走【${o1Line}】`;
+            aiDesc.innerText = `${o1Line} 预计 ${o1.nextBus?.etaMinutes || 5} 分钟后到达梅家浜路站，现在穿鞋出门到站刚好无缝上车！一趟直达漕河泾。`;
+          } else if (o1Dec.level === 'missed') {
+            aiTitle.innerText = `💡 早晨推荐：走【地铁9号线 ➔ ${o2Line}】`;
+            aiDesc.innerText = `${o1Line} 刚刚进站已来不及出门，建议乘地铁9号线到九亭换乘松江40路更稳妥！`;
           } else {
             aiTitle.innerText = `💡 早晨通勤提示`;
-            aiDesc.innerText = `松莘B线预计还有 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等发车')}；地铁九亭站松江40路预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等发车')}。请合理安排出门时间！`;
+            aiDesc.innerText = `${o1Line} 预计还有 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等发车')}；地铁九亭站 ${o2Line} 预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等发车')}。请合理安排出门时间！`;
           }
         } else {
-          if (o1.decision.level === 'perfect') {
-            aiTitle.innerText = `💡 下班推荐：优先走【${o1.lineName}】`;
-            aiDesc.innerText = `${o1.lineName} 预计 ${o1.nextBus.etaMinutes} 分钟后到达，骑行 1.5km 约 6 分钟，现在扫车出发刚好直接上车！一趟车直达！`;
-          } else if (o1.decision.level === 'missed' && o2.decision.level !== 'missed') {
-            aiTitle.innerText = `💡 下班推荐：走楼下【${o2.lineName} + 地铁】`;
-            aiDesc.innerText = `${o1.lineName} 即将进站已赶不上，不要冒险狂奔！直接下楼坐 ${o2.lineName} 去九亭换地铁更稳妥。`;
+          if (o1Dec.level === 'perfect') {
+            aiTitle.innerText = `💡 下班推荐：优先走【${o1Line}】`;
+            aiDesc.innerText = `${o1Line} 预计 ${o1.nextBus?.etaMinutes || 8} 分钟后到达，骑行 1.5km 约 6 分钟，现在扫车出发刚好直接上车！一趟车直达！`;
+          } else if (o1Dec.level === 'missed' && o2Dec.level !== 'missed') {
+            aiTitle.innerText = `💡 下班推荐：走楼下【${o2Line} + 地铁】`;
+            aiDesc.innerText = `${o1Line} 即将进站已赶不上，不要冒险狂奔！直接下楼坐 ${o2Line} 去九亭换地铁更稳妥。`;
           } else if (o2.nextBus && o2.nextBus.etaMinutes <= 5) {
-            aiTitle.innerText = `💡 下班推荐：下楼坐【${o2.lineName}】`;
-            aiDesc.innerText = `楼下 ${o2.lineName} 还有 ${o2.nextBus.etaMinutes} 分钟进站，立即下楼就能坐上！`;
+            aiTitle.innerText = `💡 下班推荐：下楼坐【${o2Line}】`;
+            aiDesc.innerText = `楼下 ${o2Line} 还有 ${o2.nextBus.etaMinutes} 分钟进站，立即下楼就能坐上！`;
           } else {
             aiTitle.innerText = `💡 下班通勤提示`;
-            aiDesc.innerText = `松莘B线预计还有 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等发车')}；松江40路预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等发车')}。请根据工位与骑车用时合理选择！`;
+            aiDesc.innerText = `${o1Line} 预计还有 ${o1.nextBus ? o1.nextBus.etaMinutes + '分钟' : (o1.depDesc || '等发车')}；${o2Line} 预计 ${o2.nextBus ? o2.nextBus.etaMinutes + '分钟' : (o2.depDesc || '等发车')}。请根据工位与骑车用时合理选择！`;
           }
         }
       }
