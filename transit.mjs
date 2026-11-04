@@ -3,7 +3,7 @@ import * as https from "node:https";
 import * as http from "node:http";
 import * as zlib from "node:zlib";
 
-const BASE_DOMAIN = "https://web.chelaile.net.cn";
+const BASE_DOMAIN = "http://web.chelaile.net.cn";
 const BASE_URL = `${BASE_DOMAIN}/api`;
 const SIGN_SALT = "qwihrnbtmj";
 const AES_KEY = "FF32AE65FBFD19414EAAFF6291A54B42";
@@ -224,7 +224,18 @@ export async function request(url, params) {
   const signed = { ...params, cryptoSign: cryptoSign(params) };
   const u = new URL(url);
   u.search = new URLSearchParams(signed).toString();
-  const { body } = await rawGet(u);
+
+  const res = await fetch(u, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254160a) XWEB/18055",
+      "xweb_xhr": "1",
+      "Referer": "https://servicewechat.com/wx71d589ea01ce3321/814/page-frame.html",
+      "Accept": "*/*"
+    },
+    signal: AbortSignal.timeout(6000)
+  });
+
+  const body = await res.text();
   return parseEncryptedEnvelope(body);
 }
 
@@ -505,6 +516,22 @@ export async function fetchLiveStatus(option) {
       success: false,
       optionId: option.id,
       name: option.name,
+      badge: option.badge,
+      lineName: option.lineName,
+      directionText: option.directionText,
+      stopName: option.stopName,
+      destStopName: option.destStopName,
+      totalTripTime: option.totalTripTime,
+      prepTimeMinutes: option.prepTimeMinutes,
+      nextBus: null,
+      secondBus: null,
+      depDesc: "卫星信号连接中",
+      decision: {
+        level: "wait",
+        tag: "信号连接中",
+        tip: "正在连接松江公交调度中心获取最新实时位置，稍候自动刷新...",
+        color: "#f59e0b"
+      },
       error: err.message
     };
   }

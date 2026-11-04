@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
   try {
     const [weather, ...options] = await Promise.all([
-      fetchSongjiangWeather(),
+      fetchSongjiangWeather().catch(() => null),
       ...routeConfig.options.map(opt => fetchLiveStatus(opt))
     ]);
 
