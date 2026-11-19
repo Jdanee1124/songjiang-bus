@@ -232,7 +232,7 @@ export async function request(url, params) {
       "Referer": "https://servicewechat.com/wx71d589ea01ce3321/814/page-frame.html",
       "Accept": "*/*"
     },
-    signal: AbortSignal.timeout(8000)
+    signal: AbortSignal.timeout(2800)
   };
 
   try {
